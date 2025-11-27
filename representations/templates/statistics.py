@@ -1,5 +1,7 @@
 import re
+
 from tqdm import tqdm
+
 from CONSTANTS import *
 from utils.common import like_camel_to_tokens
 
@@ -9,23 +11,33 @@ num_oov = 0
 PROJECT_ROOT = GET_PROJECT_ROOT()
 LOG_ROOT = GET_LOGS_ROOT()
 # Dispose Loggers.
-Statistics_Template_Logger = logging.getLogger('Statistics_Template_Encoder')
+Statistics_Template_Logger = logging.getLogger("Statistics_Template_Encoder")
 Statistics_Template_Logger.setLevel(logging.DEBUG)
 console_handler = logging.StreamHandler(sys.stderr)
 console_handler.setLevel(logging.DEBUG)
-console_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - " + SESSION + " - %(levelname)s: %(message)s"))
+console_handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s - %(name)s - " + SESSION + " - %(levelname)s: %(message)s"
+    )
+)
 
-file_handler = logging.FileHandler(os.path.join(LOG_ROOT, 'Statistics_Template.log'))
+file_handler = logging.FileHandler(os.path.join(LOG_ROOT, "Statistics_Template.log"))
 file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - " + SESSION + " - %(levelname)s: %(message)s"))
+file_handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s - %(name)s - " + SESSION + " - %(levelname)s: %(message)s"
+    )
+)
 
 Statistics_Template_Logger.addHandler(console_handler)
 Statistics_Template_Logger.addHandler(file_handler)
 Statistics_Template_Logger.info(
-    'Construct Statistics Template Encoder success, current working directory: %s, logs will be written in %s' %
-    (os.getcwd(), LOG_ROOT))
+    "Construct Statistics Template Encoder success, current working directory: %s, logs will be written in %s"
+    % (os.getcwd(), LOG_ROOT)
+)
 
-class Simple_template_TF_IDF():
+
+class Simple_template_TF_IDF:
     def __init__(self):
         self._word2vec = {}
         self.vocab_size = 0
@@ -45,9 +57,9 @@ class Simple_template_TF_IDF():
                 if word in self._word2vec.keys():
                     return_list.append(self._word2vec[word])
                 else:
-                    print(word, end=' ')
+                    print(word, end=" ")
                     num_oov += 1
-            return np.asarray(return_list, dtype=np.float).sum(axis=0) / len(words)
+            return np.asarray(return_list, dtype=float).sum(axis=0) / len(words)
         else:
             total_words += 1
             word = words.lower()
@@ -59,23 +71,25 @@ class Simple_template_TF_IDF():
                 return np.zeros(self.vocab_size)
 
     def load_word2vec(self):
-        Statistics_Template_Logger.info('Loading word2vec dict.')
-        embed_file = os.path.join(PROJECT_ROOT, 'datasets/glove.6B.300d.txt')
+        Statistics_Template_Logger.info("Loading word2vec dict.")
+        embed_file = os.path.join(PROJECT_ROOT, "datasets/glove.6B.300d.txt")
         if os.path.exists(embed_file):
-            with open(embed_file, 'r', encoding='utf-8') as reader:
+            with open(embed_file, "r", encoding="utf-8") as reader:
                 for line in tqdm(reader.readlines()):
                     tokens = line.strip().split()
                     word = tokens[0]
-                    embed = np.asarray(tokens[1:], dtype=np.float)
+                    embed = np.asarray(tokens[1:], dtype=float)
                     self._word2vec[word] = embed
 
                     self.vocab_size = len(tokens) - 1
 
                     if len(tokens) != 301:
-                        Statistics_Template_Logger.info('Wow: ' + line)
+                        Statistics_Template_Logger.info("Wow: " + line)
 
         else:
-            Statistics_Template_Logger.error('No pre-trained embedding file(%s) found. Please check.' % embed_file)
+            Statistics_Template_Logger.error(
+                "No pre-trained embedding file(%s) found. Please check." % embed_file
+            )
             exit(2)
 
     def present(self, id2templates):
@@ -87,13 +101,13 @@ class Simple_template_TF_IDF():
         id2embed = {}
         for id, template in id2templates.items():
             # Preprocess: split by spaces and special characters.
-            template_tokens = re.split(r'[,\!:=\[\]\(\)\$\s\.\/\#\|\\ ]', template)
+            template_tokens = re.split(r"[,\!:=\[\]\(\)\$\s\.\/\#\|\\ ]", template)
             filtered_tokens = []
             for simplified_token in template_tokens:
-                if re.match('[\_]+', simplified_token) is not None:
-                    filtered_tokens.append('')
-                elif re.match('[\-]+', simplified_token) is not None:
-                    filtered_tokens.append('')
+                if re.match("[\_]+", simplified_token) is not None:
+                    filtered_tokens.append("")
+                elif re.match("[\-]+", simplified_token) is not None:
+                    filtered_tokens.append("")
                 else:
                     filtered_tokens.append(simplified_token)
             template_tokens = list(filter(self.not_empty, filtered_tokens))
@@ -104,10 +118,12 @@ class Simple_template_TF_IDF():
                 all_tokens = all_tokens.union(template_tokens)
 
             # Update new processed templates
-            processed_id2templates[id] = ' '.join(template_tokens)
+            processed_id2templates[id] = " ".join(template_tokens)
 
         Statistics_Template_Logger.info(
-            'Found %d tokens in %d log templates' % (len(all_tokens), len(processed_id2templates)))
+            "Found %d tokens in %d log templates"
+            % (len(all_tokens), len(processed_id2templates))
+        )
 
         # Calculate IDF score.
         total_templates = len(processed_id2templates)
@@ -134,11 +150,13 @@ class Simple_template_TF_IDF():
                 embed = self.transform(simple_words)
                 template_emb += tf * idf * embed
             id2embed[id] = template_emb
-        Statistics_Template_Logger.info("OOV Rate: %d/%d = %.4f" % (num_oov, total_words, (num_oov / total_words)))
+        Statistics_Template_Logger.info(
+            "OOV Rate: %d/%d = %.4f" % (num_oov, total_words, (num_oov / total_words))
+        )
         return id2embed
 
 
-class Template_TF_IDF_without_clean():
+class Template_TF_IDF_without_clean:
     def __init__(self):
         self._word2vec = {}
         self.vocab_size = 0
@@ -163,20 +181,22 @@ class Template_TF_IDF_without_clean():
                 return np.zeros(self.vocab_size)
 
     def load_word2vec(self):
-        Statistics_Template_Logger.info('Loading word2vec dict.')
+        Statistics_Template_Logger.info("Loading word2vec dict.")
 
-        embed_file = os.path.join(PROJECT_ROOT, 'datasets/glove.6B.300d.txt')
+        embed_file = os.path.join(PROJECT_ROOT, "datasets/glove.6B.300d.txt")
         if os.path.exists(embed_file):
-            with open(embed_file, 'r', encoding='utf-8') as reader:
+            with open(embed_file, "r", encoding="utf-8") as reader:
                 for line in tqdm(reader.readlines()):
                     tokens = line.strip().split()
                     word = tokens[0]
-                    embed = np.asarray(tokens[1:], dtype=np.float)
+                    embed = np.asarray(tokens[1:], dtype=float)
                     self._word2vec[word] = embed
                     self.vocab_size = len(tokens) - 1
             pass
         else:
-            Statistics_Template_Logger.error('No pre-trained embedding file(%s) found. Please check.' % embed_file)
+            Statistics_Template_Logger.error(
+                "No pre-trained embedding file(%s) found. Please check." % embed_file
+            )
             exit(2)
 
     def present(self, id2templates):
@@ -187,7 +207,9 @@ class Template_TF_IDF_without_clean():
             templates.append(template)
             ids.append(id)
             all_tokens = all_tokens.union(template.split())
-        Statistics_Template_Logger.info('Found %d tokens in %d log templates' % (len(all_tokens), len(templates)))
+        Statistics_Template_Logger.info(
+            "Found %d tokens in %d log templates" % (len(all_tokens), len(templates))
+        )
 
         # Calculate IDF score.
         total_templates = len(templates)

@@ -128,7 +128,8 @@ class MetaLog:
             tag_correct, tag_total = 0, 0
             for onebatch in data_iter(instances, self.test_batch_size, False):
                 tinst = generate_tinsts_binary_label(onebatch, vocab_BGL, False)
-                tinst.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst.to_cuda(device)
                 self.model.eval()
                 pred_tags, tag_logits = self.predict(tinst.inputs, threshold)
                 for inst, bmatch in batch_variable_inst(onebatch, pred_tags, tag_logits, processor_BGL.id2tag):
@@ -339,15 +340,19 @@ if __name__ == '__main__':
                 meta_train_batch = meta_train_loader.__next__()
                 meta_test_batch = meta_test_loader.__next__()
                 tinst_tr = generate_tinsts_binary_label(meta_train_batch, vocab_HDFS)
-                tinst_tr.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst_tr.to_cuda(device)
                 loss = metalog.forward(tinst_tr.inputs, tinst_tr.targets)
                 loss_value = loss.data.cpu().numpy()
                 loss.backward(retain_graph=True)
                 batch_iter += 1
-                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, 2e-3).train().cuda()
+                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, 2e-3).train()
+                if torch.cuda.is_available():
+                    metalog.bk_model = metalog.bk_model.cuda(device)
                 # meta test
                 tinst_test = generate_tinsts_binary_label(meta_test_batch, vocab_BGL)
-                tinst_test.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst_test.to_cuda(device)
                 loss_te = beta * metalog.bk_forward(tinst_test.inputs, tinst_test.targets)
                 loss_value_te = loss_te.data.cpu().numpy() / beta
                 loss_te.backward()

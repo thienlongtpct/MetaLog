@@ -1,17 +1,33 @@
 import sys
-sys.path.extend([".", ".."])
-from CONSTANTS import *
-from sklearn.decomposition import FastICA
-from representations.templates.statistics import Simple_template_TF_IDF, Template_TF_IDF_without_clean
-from representations.sequences.statistics import Sequential_TF
-from preprocessing.datacutter.SimpleCutting import cut_by_217, cut_by_316, cut_by_415, cut_by_514, cut_by_316_filter, cut_by_415_filter, cut_by_226_filter, cut_by_514_filter, cut_by_613_filter
-from preprocessing.AutoLabeling import Probabilistic_Labeling
-from preprocessing.Preprocess import Preprocessor
-from module.Optimizer import Optimizer
-from module.Common import data_iter, generate_tinsts_binary_label, batch_variable_inst
-from models.gru import AttGRUModel
-from utils.Vocab import Vocab
 
+sys.path.extend([".", ".."])
+from sklearn.decomposition import FastICA
+
+from CONSTANTS import *
+from models.gru import AttGRUModel
+from module.Common import batch_variable_inst, data_iter, generate_tinsts_binary_label
+from module.Optimizer import Optimizer
+from preprocessing.AutoLabeling import Probabilistic_Labeling
+
+# from preprocessing.datacutter.SimpleCutting import cut_by_217, cut_by_316, cut_by_415, cut_by_514, cut_by_316_filter, cut_by_415_filter, cut_by_226_filter, cut_by_514_filter, cut_by_613_filter
+from preprocessing.datacutter.StableSimpleCutting import (
+    cut_by_217,
+    cut_by_226_filter,
+    cut_by_316,
+    cut_by_316_filter,
+    cut_by_415,
+    cut_by_415_filter,
+    cut_by_514,
+    cut_by_514_filter,
+    cut_by_613_filter,
+)
+from preprocessing.Preprocess import Preprocessor
+from representations.sequences.statistics import Sequential_TF
+from representations.templates.statistics import (
+    Simple_template_TF_IDF,
+    Template_TF_IDF_without_clean,
+)
+from utils.Vocab import Vocab
 
 lstm_hiddens = 100
 num_layer = 2
@@ -128,7 +144,8 @@ class MetaLog:
             tag_correct, tag_total = 0, 0
             for onebatch in data_iter(instances, self.test_batch_size, False):
                 tinst = generate_tinsts_binary_label(onebatch, vocab_BGL, False)
-                tinst.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst.to_cuda(device)
                 self.model.eval()
                 pred_tags, tag_logits = self.predict(tinst.inputs, threshold)
                 for inst, bmatch in batch_variable_inst(onebatch, pred_tags, tag_logits, processor_BGL.id2tag):
@@ -202,9 +219,10 @@ if __name__ == '__main__':
     # Training, Validating and Testing instances.
     template_encoder_BGL = Template_TF_IDF_without_clean() if dataset == 'NC' else Simple_template_TF_IDF()
     processor_BGL = Preprocessor()
-    train_BGL, _, test_BGL = processor_BGL.process(dataset=dataset, parsing=parser, cut_func=cut_by_316_filter,
+    # train_BGL, _, test_BGL = processor_BGL.process(dataset=dataset, parsing=parser, cut_func=cut_by_316_filter,
+    #                                      template_encoding=template_encoder_BGL.present)
+    train_BGL, _, test_BGL = processor_BGL.process(dataset=dataset, parsing=parser, cut_func=lambda instance: cut_by_316_filter(instance, block_index=0),
                                          template_encoding=template_encoder_BGL.present)
-
     # Log sequence representation.
     sequential_encoder_BGL = Sequential_TF(processor_BGL.embedding)
     train_reprs_BGL = sequential_encoder_BGL.present(train_BGL)
@@ -231,8 +249,7 @@ if __name__ == '__main__':
     normal_ids_BGL = train_normal_BGL[:int(0.5 * len(train_normal_BGL))]
     label_generator_BGL = Probabilistic_Labeling(min_samples=min_samples, min_clust_size=min_cluster_size,
                                              res_file=prob_label_res_file_BGL, rand_state_file=rand_state_BGL)
-    labeled_train_BGL = label_generator_BGL.auto_label(train_BGL, normal_ids_BGL)
-
+    labeled_train_BGL = label_generator_BGL.auto_label(train_BGL, normal_ids_BGL)       
     # Below is used to test if the loaded result match the original clustering result.
     TP, TN, FP, FN = 0, 0, 0, 0
 
@@ -341,15 +358,19 @@ if __name__ == '__main__':
                 meta_train_batch = meta_train_loader.__next__()
                 meta_test_batch = meta_test_loader.__next__()
                 tinst_tr = generate_tinsts_binary_label(meta_train_batch, vocab_HDFS)
-                tinst_tr.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst_tr.to_cuda(device)
                 loss = metalog.forward(tinst_tr.inputs, tinst_tr.targets)
                 loss_value = loss.data.cpu().numpy()
                 loss.backward(retain_graph=True)
                 batch_iter += 1
-                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, 2e-3).train().cuda()
+                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, 2e-3).train()
+                if torch.cuda.is_available():
+                    metalog.bk_model = metalog.bk_model.cuda()
                 # meta test
                 tinst_test = generate_tinsts_binary_label(meta_test_batch, vocab_BGL)
-                tinst_test.to_cuda(device)
+                if torch.cuda.is_available():
+                    tinst_test.to_cuda(device)
                 loss_te = beta * metalog.bk_forward(tinst_test.inputs, tinst_test.targets)
                 loss_value_te = loss_te.data.cpu().numpy() / beta
                 loss_te.backward()

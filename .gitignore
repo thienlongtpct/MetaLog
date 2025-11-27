@@ -1,0 +1,6 @@
+# Ignore dataset directories
+datasets/*
+outputs/*
+logs/*
+**/__pycache__
+.venv
