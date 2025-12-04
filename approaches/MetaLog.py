@@ -29,6 +29,10 @@ from representations.templates.statistics import (
 )
 from utils.Vocab import Vocab
 
+from models.emphasis import *
+import numpy as np
+from sklearn.metrics import f1_score, confusion_matrix
+
 lstm_hiddens = 100
 num_layer = 2
 batch_size = 100
@@ -189,8 +193,12 @@ if __name__ == '__main__':
                            help="Reduce dimentsion for fastICA, to accelerate the HDBSCAN probabilistic label estimation.")
     argparser.add_argument('--threshold', type=float, default=0.5,
                            help="Anomaly threshold.")
-    argparser.add_argument('--beta', type=float, default=1.0,
+    argparser.add_argument('--beta', type=float, default=4.0,
                            help="weight for meta testing")
+    argparser.add_argument('--alpha', type=float, default=2e-3,
+                           help="weight for meta train")
+    argparser.add_argument('--gamma', type=float, default=2e-3,
+                           help="weight overall")
 
     args, extra_args = argparser.parse_known_args()
 
@@ -200,7 +208,9 @@ if __name__ == '__main__':
     min_samples = args.min_samples
     reduce_dimension = args.reduce_dimension
     threshold = args.threshold
+    alpha = args.alpha
     beta = args.beta
+    gamma = args.gamma
 
     # process BGL
     dataset = 'BGL'
@@ -223,8 +233,64 @@ if __name__ == '__main__':
     #                                      template_encoding=template_encoder_BGL.present)
     train_BGL, _, test_BGL = processor_BGL.process(dataset=dataset, parsing=parser, cut_func=lambda instance: cut_by_316_filter(instance, block_index=0),
                                          template_encoding=template_encoder_BGL.present)
+ 
+    # train_BGL_emphasis = EmphasisDataset([train.sequence for train in train_BGL], [train.mask for train in train_BGL], processor_BGL.embedding)
+    # model_type = 'autoencoder'  # Try: 'transformer', 'autoencoder', 'lstm', 'conv'
+    # model, trainer, pipeline = create_model_pipeline(
+    #     model_type=model_type, 
+    #     n_fixed=120,
+    #     device=device
+    # )
+        
+    # # Split dataset
+    # train_BGL_8, train_BGL_2 = torch.utils.data.random_split(
+    #     train_BGL_emphasis, [int(0.8 * len(train_BGL_emphasis)), len(train_BGL_emphasis) - int(0.8 * len(train_BGL_emphasis))]
+    # )
+    
+    # # Create data loaders
+    # train_loader = torch.utils.data.DataLoader(
+    #     train_BGL_8, batch_size=16, shuffle=True
+    # )
+    # val_loader = torch.utils.data.DataLoader(
+    #     train_BGL_2, batch_size=16, shuffle=False
+    # )
+        
+    # trainer.train(
+    #     train_loader, 
+    #     val_loader, 
+    #     epochs=10,  # Use more epochs for real training
+    #     lr=0.001
+    # )
+    
+    # results = pipeline(
+    #     sequences_list=[test.sequence for test in test_BGL],
+    #     id2embed=processor_BGL.embedding,
+    #     vector_dim=300,
+    #     k=2.0,
+    #     threshold=0.3,
+    #     batch_size=2
+    # )
+
+    # # ground truth per-sequence: 1 if any mask position is anomalous (>0), else 0
+    # y_true = []
+    # for inst in test_BGL:
+    #     y_true.extend(inst.mask)
+
+    # # convert pipeline results to per-sequence binary predictions
+    # y_pred = []
+    # for i, (emphasized, mask, probs) in enumerate(results):
+    #     y_pred.extend(mask)
+    
+    # f1 = f1_score(y_true, y_pred)
+    # cm = confusion_matrix(y_true, y_pred)  # [[TN, FP],[FN, TP]]
+
+    # print("Evaluation over test_BGL.mask")
+    # print("F1 score: %.4f" % f1)
+    # print("Confusion matrix (rows=true [Normal=0, Anomalous=1], cols=pred):")
+    # print(cm)
+    
     # Log sequence representation.
-    sequential_encoder_BGL = Sequential_TF(processor_BGL.embedding)
+    sequential_encoder_BGL = Sequential_TF(processor_BGL.embedding, masked=True, k=10)
     train_reprs_BGL = sequential_encoder_BGL.present(train_BGL)
     for index, inst in enumerate(train_BGL):
         inst.repr = train_reprs_BGL[index]
@@ -323,7 +389,6 @@ if __name__ == '__main__':
     vocab_HDFS.load_from_dict(processor_HDFS.embedding)
     print(new_embedding.keys())
     vocab.load_from_dict(new_embedding)
-
     metalog = MetaLog(vocab, num_layer, lstm_hiddens, processor_BGL.label2id)
 
     # meta learning
@@ -334,7 +399,7 @@ if __name__ == '__main__':
         os.makedirs(output_model_dir)
     if mode == 'train':
         # Train
-        optimizer = Optimizer(filter(lambda p: p.requires_grad, metalog.model.parameters()), lr=2e-3)
+        optimizer = Optimizer(filter(lambda p: p.requires_grad, metalog.model.parameters()), lr=gamma)
         global_step = 0
         bestF = 0
         for epoch in range(epochs):
@@ -364,7 +429,7 @@ if __name__ == '__main__':
                 loss_value = loss.data.cpu().numpy()
                 loss.backward(retain_graph=True)
                 batch_iter += 1
-                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, 2e-3).train()
+                metalog.bk_model = get_updated_network(metalog.model, metalog.bk_model, alpha).train()
                 if torch.cuda.is_available():
                     metalog.bk_model = metalog.bk_model.cuda()
                 # meta test
@@ -406,4 +471,5 @@ if __name__ == '__main__':
         metalog.logger.info('=== Best Model ===')
         metalog.model.load_state_dict(torch.load(best_model_file))
         metalog.evaluate(test_BGL, threshold)
+    metalog.logger.info('All Finished')
     metalog.logger.info('All Finished')

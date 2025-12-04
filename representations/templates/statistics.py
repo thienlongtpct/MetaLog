@@ -72,11 +72,11 @@ class Simple_template_TF_IDF:
 
     def load_word2vec(self):
         Statistics_Template_Logger.info("Loading word2vec dict.")
-        embed_file = os.path.join(PROJECT_ROOT, "datasets/glove.6B.300d.txt")
+        embed_file = EMBEDDING_FILE
         if os.path.exists(embed_file):
             with open(embed_file, "r", encoding="utf-8") as reader:
                 for line in tqdm(reader.readlines()):
-                    tokens = line.strip().split()
+                    tokens = line.strip().split(" ")
                     word = tokens[0]
                     embed = np.asarray(tokens[1:], dtype=float)
                     self._word2vec[word] = embed
@@ -183,7 +183,7 @@ class Template_TF_IDF_without_clean:
     def load_word2vec(self):
         Statistics_Template_Logger.info("Loading word2vec dict.")
 
-        embed_file = os.path.join(PROJECT_ROOT, "datasets/glove.6B.300d.txt")
+        embed_file = os.path.join(PROJECT_ROOT, "datasets/840B.300d.txt")
         if os.path.exists(embed_file):
             with open(embed_file, "r", encoding="utf-8") as reader:
                 for line in tqdm(reader.readlines()):

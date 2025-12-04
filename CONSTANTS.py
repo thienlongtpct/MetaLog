@@ -62,3 +62,7 @@ if not os.path.exists(pretrained_mode_path):
     os.makedirs(pretrained_mode_path)
 os.environ['TRANSFORMERS_CACHE'] = pretrained_mode_path
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
+
+EMBEDDING_FILE = os.path.join(PROJECT_ROOT, 'datasets/glove.840B.300d.txt')
+BGL_LOG_FILE = os.path.join(PROJECT_ROOT, 'datasets/BGL/BGL.log')
+HDFS_LOG_FILE = os.path.join(PROJECT_ROOT, 'datasets/HDFS/HDFS.log')

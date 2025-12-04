@@ -62,11 +62,11 @@ class Preprocessor:
         parser_persistence = os.path.join(PROJECT_ROOT, 'datasets/' + dataset + '/persistences')
 
         if dataset == 'HDFS':
-            dataloader = HDFSLoader(in_file=os.path.join(PROJECT_ROOT, 'datasets/HDFS/HDFS.log'),
+            dataloader = HDFSLoader(in_file=HDFS_LOG_FILE,
                                     semantic_repr_func=template_encoding)
             parser_config = os.path.join(PROJECT_ROOT, 'conf/HDFS.ini')
         elif dataset == 'BGL' or dataset == 'BGLSample':
-            in_file = os.path.join(PROJECT_ROOT, 'datasets/' + dataset + '/' + dataset + '.log')
+            in_file = BGL_LOG_FILE
             dataset_base = os.path.join(PROJECT_ROOT, 'datasets/' + dataset)
             dataloader = BGLLoader(in_file=in_file, dataset_base=dataset_base,
                                    semantic_repr_func=template_encoding)
@@ -102,7 +102,10 @@ class Preprocessor:
             if block in self.dataloader.block2eventseq.keys() and block in self.dataloader.block2label.keys():
                 id = block
                 label = self.dataloader.block2label[id]
-                inst = Instance(id, self.dataloader.block2eventseq[id], label)
+                mask = None
+                if id in self.dataloader.block2anomalous:
+                    mask = self.dataloader.block2anomalous[id]
+                inst = Instance(id, self.dataloader.block2eventseq[id], label, mask)
                 instances.append(inst)
             else:
                 self.logger.error('Found mismatch block: %s. Please check.' % block)

@@ -3,10 +3,11 @@ from collections import Counter
 
 
 class Instance:
-    def __init__(self, block_id, log_sequence, label):
+    def __init__(self, block_id, log_sequence, label, mask=None):
         self.id = block_id
         self.sequence = log_sequence
         self.label = label
+        self.mask = mask
         self.repr = None
         self.predicted = ''
         self.confidence = 0

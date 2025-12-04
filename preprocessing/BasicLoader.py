@@ -29,6 +29,7 @@ class BasicDataLoader:
         self.block2seqs = {}
         self.block2label = {}
         self.block2eventseq = {}
+        self.block2anomalous = {}
         self.id2embed = {}
         self.semantic_repr_func = None
 

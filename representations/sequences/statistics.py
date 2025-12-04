@@ -30,11 +30,13 @@ StaticLogger.info(
 
 
 class Sequential_TF:
-    def __init__(self, id2embed):
+    def __init__(self, id2embed, masked=False, k=2):
         assert isinstance(id2embed, dict)
         self.vocab_size = len(id2embed)
         self.word_dim = id2embed[1].shape
         self.id2embed = id2embed
+        self.masked = masked
+        self.k = k
 
     def transform(self, instances):
         reprs = []
@@ -43,7 +45,12 @@ class Sequential_TF:
             # total_len = len(inst.sequence)
             for idx in inst.sequence:
                 if idx in self.id2embed.keys():
-                    repr += self.id2embed[idx]
+                    if self.masked and inst.mask is None:
+                        raise ValueError("Instance mask is None but masked=True in Sequential_TF encoder.")
+                    if self.masked and inst.mask is not None and idx < len(inst.mask):
+                        repr += self.id2embed[idx] * self.k if inst.mask[idx] == 1 else self.id2embed[idx]
+                    else:
+                        repr += self.id2embed[idx]
             # repr /= total_len
             reprs.append(repr)
         return np.asarray(reprs, dtype=np.float64)
